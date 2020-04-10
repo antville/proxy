@@ -22,28 +22,49 @@
 "http://code.google.com/p/antville/wiki/ProxyFeature"
 
 Proxy.prototype.main_action = function () {
-  var url = req.data.url;
-  if (!url) {
-    return;
-  }
+  const url = req.data.url;
 
-  var http = new helma.Http;
-  var data = http.getUrl(url);
+  if (!url) return;
+
+  const callback = req.data.callback;
+  const http = new helma.Http();
+
+  http.setBinaryMode(true);
+
+  http.setHeader('Accept', '*/*');
+  http.setHeader('Accept-Encoding', 'gzip');
+  http.setHeader('Cache-Control', 'no-cache');
+  http.setHeader('Pragma', 'no-cache');
+  http.setHeader('User-Agent', req.data.http_browser);
+
+  const data = http.getUrl(url);
 
   if (!data.content) {
     throw Error('Failed to retrieve URL.');
   }
 
-  var callback = req.data.callback;
   if (callback) {
-    res.contentType = 'text/javascript';
-    res.write(JSON.pad(data.content, callback));
+    res.contentType = 'application/javascript';
+
+    let content = new java.lang.String(data.content, 'utf-8');
+
+    if (!data.type.startsWith('text/')) {
+      content = new java.lang.String(content.enbase64());
+    }
+
+    // The String() call prevents stack overflow
+    res.write(JSON.pad(String(content), callback));
   } else {
-    res.write(data.content);
+    res.contentType = data.type;
+
+    if (data.type.startsWith('text/')) {
+      res.write(java.lang.String(data.content, 'utf-8'));
+    } else {
+      res.writeBinary(data.content);
+    }
   }
-  return;
 };
 
-Proxy.prototype.getPermission = function (name) {
-  return User.require(User.TRUSTED);
+Proxy.prototype.getPermission = function() {
+  return User.require(User.REGULAR);
 };
